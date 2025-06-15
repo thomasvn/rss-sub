@@ -1,3 +1,5 @@
+import { email } from "https://esm.town/v/std/email";
+
 interface BlogPost {
   title: string;
   link: string;
@@ -22,14 +24,13 @@ const FEED_URLS = [
   "https://www.alexedwards.net/static/feed.rss",
 ];
 
-async function checkNewPosts(feedUrl: string): Promise<BlogPost[]> {
-  const response = await fetch(feedUrl);
-  const xml = await response.text();
-
+function checkNewPosts(xml: string): BlogPost[] {
   // Simple XML parsing using regex (since we only need basic fields)
   const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const weekAgo = new Date(today);
+  weekAgo.setDate(today.getDate() - 7);
 
   return items
     .map((item) => {
@@ -46,54 +47,45 @@ async function checkNewPosts(feedUrl: string): Promise<BlogPost[]> {
     .filter((post) => {
       const postDate = new Date(post.pubDate);
       postDate.setHours(0, 0, 0, 0);
-      return postDate.getTime() === today.getTime();
+      return postDate >= weekAgo && postDate <= today;
     });
 }
 
-async function sendWebhookNotification(posts: BlogPost[], feedUrl: string) {
-  const webhookUrl = process.env.WEBHOOK_URL;
-  if (!webhookUrl) {
-    throw new Error("WEBHOOK_URL environment variable is not set");
-  }
-
+async function sendEmailNotification(posts: BlogPost[], feedUrl: string) {
   const message = posts
     .map((post) => `- ${post.title}: ${post.link}`)
     .join("\n");
 
-  await fetch(webhookUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text: `New blog posts published today for feed: ${feedUrl}\n\n${message}`,
-    }),
+  await email({
+    subject: `New blog posts from ${feedUrl}`,
+    text: `New blog posts published this week:\n\n${message}`,
   });
 }
 
-export async function checkAndNotify(feedUrl: string) {
+async function checkAndNotify(feedUrl: string) {
   try {
-    const newPosts = await checkNewPosts(feedUrl);
+    const response = await fetch(feedUrl);
+    const xml = await response.text();
+    const newPosts = checkNewPosts(xml);
+
     if (newPosts.length > 0) {
-      await sendWebhookNotification(newPosts, feedUrl);
-      return `Found ${newPosts.length} new posts and sent notification for ${feedUrl}`;
+      await sendEmailNotification(newPosts, feedUrl);
+      console.log(
+        `Found ${newPosts.length} new posts and sent email for ${feedUrl}`
+      );
+    } else {
+      console.log(`No new posts today for ${feedUrl}`);
     }
-    return `No new posts today for ${feedUrl}`;
   } catch (error) {
-    console.error("Error:", error);
-    throw error;
+    console.error(`Error checking ${feedUrl}:`, error);
   }
 }
 
 export async function checkAllFeeds() {
-  const results = [];
   for (const url of FEED_URLS) {
-    try {
-      const result = await checkAndNotify(url);
-      results.push({ url, result });
-    } catch (error) {
-      results.push({ url, result: `Error: ${error}` });
-    }
+    console.log("Checking feed:", url);
+    await checkAndNotify(url);
   }
-  return results;
 }
+
+checkAllFeeds().catch(console.error);
