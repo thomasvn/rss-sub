@@ -27,15 +27,15 @@ const FEED_URLS = [
 export async function checkAllFeeds() {
   for (const url of FEED_URLS) {
     console.log("Checking feed:", url);
-    await getFeedAndEmailUpdate(url);
+    await fetchFeedAndNotify(url);
   }
 }
 
-async function getFeedAndEmailUpdate(feedUrl: string) {
+async function fetchFeedAndNotify(feedUrl: string) {
   try {
     const response = await fetch(feedUrl);
     const xml = await response.text();
-    const newPosts = parseForTodaysPosts(xml);
+    const newPosts = extractTodaysPosts(xml);
 
     if (newPosts.length > 0) {
       await sendEmailNotification(newPosts, feedUrl);
@@ -50,7 +50,7 @@ async function getFeedAndEmailUpdate(feedUrl: string) {
   }
 }
 
-function parseForTodaysPosts(xml: string): BlogPost[] {
+function extractTodaysPosts(xml: string): BlogPost[] {
   // Simple XML parsing using regex (since we only need basic fields)
   const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
   const today = new Date();
