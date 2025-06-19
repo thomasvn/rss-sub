@@ -1,4 +1,5 @@
 import { email } from "https://esm.town/v/std/email";
+import { sqlite } from "https://esm.town/v/std/sqlite";
 
 interface BlogPost {
   title: string;
@@ -6,29 +7,23 @@ interface BlogPost {
   pubDate: string;
 }
 
-const FEED_URLS = [
-  "https://thomasvn.dev/feed/",
-  "https://jvns.ca/atom.xml",
-  "https://golangweekly.com/rss/",
-  "https://blog.pragmaticengineer.com/feed/",
-  "https://rss.beehiiv.com/feeds/gQxaV1KHkQ.xml",
-  "https://world.hey.com/dhh/feed.atom",
-  "https://blog.kubecost.com/feed.xml",
-  "https://kubernetes.io/feed.xml",
-  "https://technicalwriting.dev/rss.xml",
-  "https://sive.rs/en.atom",
-  "https://matt-rickard.com/rss",
-  "https://cybernetist.com/index.xml",
-  "https://prometheus.io/blog/feed.xml",
-  "https://www.seangoedecke.com/rss.xml",
-  "https://www.alexedwards.net/static/feed.rss",
-];
-
 export async function checkAllFeeds() {
-  for (const url of FEED_URLS) {
+  const feeds = await getAllFeeds();
+  for (const url of feeds) {
     console.log("Checking feed:", url);
     await fetchFeedAndNotify(url);
   }
+}
+
+// All feeds are stored in the valtown sqlite database. GET/ADD/DELETE are
+// handled by the http_rss_sub.tsx file.
+async function getAllFeeds(): Promise<string[]> {
+  const result = await sqlite.execute({
+    sql: `select url from feed_urls`,
+    args: [],
+  });
+
+  return result.rows.map((row) => row[0] as string);
 }
 
 async function fetchFeedAndNotify(feedUrl: string) {

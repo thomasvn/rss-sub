@@ -19,8 +19,8 @@ FEED_URLS=(
 )
 
 for url in "${FEED_URLS[@]}"; do
-  echo "Adding feed: $url"
-  curl -X GET "https://thomasvn-rss-sub-handler.val.run/delete?url=$url" \
+  echo "Deleting feed: $url"
+  curl -X GET "https://thomasvn-rss-sub.val.run/delete?url=$url" \
        -H "Authorization: Bearer ${API_KEY}"
   echo -e "\n"
 done 

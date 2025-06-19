@@ -20,7 +20,7 @@ FEED_URLS=(
 
 for url in "${FEED_URLS[@]}"; do
   echo "Adding feed: $url"
-  curl -X GET "https://thomasvn-rss-sub-handler.val.run/add?url=$url" \
+  curl -X GET "https://thomasvn-rss-sub.val.run/add?url=$url" \
        -H "Authorization: Bearer ${API_KEY}"
   echo -e "\n"
-done 
+done

@@ -51,8 +51,8 @@ export default async function httpHandler(req: Request): Promise<Response> {
       const rows: { id: number; url: string }[] = result.rows.map(
         (row) =>
           Object.fromEntries(
-            row.map((value, index) => [result.columns[index], value])
-          ) as any
+            row.map((value, index) => [result.columns[index], value]),
+          ) as any,
       );
 
       console.log("Retrieved URLs:", rows);
