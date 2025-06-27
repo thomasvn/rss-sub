@@ -45,8 +45,8 @@ async function fetchFeedAndNotify(feedUrl: string) {
   }
 }
 
+// Simple XML parsing using regex (since we only need basic fields)
 function extractTodaysPosts(xml: string): BlogPost[] {
-  // Simple XML parsing using regex (since we only need basic fields)
   const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
