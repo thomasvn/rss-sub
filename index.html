@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RSS Feed Manager</title>
+    <title>RSS Feed Subscriber</title>
     <style>
       body {
         font-family: system-ui, -apple-system, sans-serif;
@@ -77,6 +77,7 @@
       <button onclick="addFeed()">Add Feed</button>
       <button onclick="deleteFeed()">Delete Feed</button>
       <button onclick="getFeeds()">Get All Feeds</button>
+      <button onclick="getPosts()">Get Posts (last 7 days)</button>
     </div>
 
     <div id="response"></div>
@@ -84,13 +85,43 @@
     <script>
       const API_BASE = "https://thomasvn-rss-sub.val.run";
 
-      async function makeRequest(endpoint, method = "GET") {
+      function addFeed() {
         const apiKey = document.getElementById("apiKey").value;
         if (!apiKey) {
           showResponse("Please enter an API key", "error");
           return;
         }
+        const url = document.getElementById("feedUrl").value;
+        if (!url) {
+          showResponse("Please enter a feed URL", "error");
+          return;
+        }
+        makeRequest(`/add?url=${encodeURIComponent(url)}`);
+      }
 
+      function deleteFeed() {
+        const apiKey = document.getElementById("apiKey").value;
+        if (!apiKey) {
+          showResponse("Please enter an API key", "error");
+          return;
+        }
+        const url = document.getElementById("feedUrl").value;
+        if (!url) {
+          showResponse("Please enter a feed URL", "error");
+          return;
+        }
+        makeRequest(`/delete?url=${encodeURIComponent(url)}`);
+      }
+
+      function getFeeds() {
+        makeRequest("/get");
+      }
+
+      function getPosts() {
+        makeRequest("/getBlogPosts7d");
+      }
+
+      async function makeRequest(endpoint, method = "GET") {
         try {
           const response = await fetch(`${API_BASE}${endpoint}`, {
             method,
@@ -105,46 +136,29 @@
         }
       }
 
-      function addFeed() {
-        const url = document.getElementById("feedUrl").value;
-        if (!url) {
-          showResponse("Please enter a feed URL", "error");
-          return;
-        }
-        makeRequest(`/add?url=${encodeURIComponent(url)}`);
-      }
-
-      function deleteFeed() {
-        const url = document.getElementById("feedUrl").value;
-        if (!url) {
-          showResponse("Please enter a feed URL", "error");
-          return;
-        }
-        makeRequest(`/delete?url=${encodeURIComponent(url)}`);
-      }
-
-      function getFeeds() {
-        makeRequest("/get");
-      }
-
       function showResponse(message, type) {
         const responseDiv = document.getElementById("response");
         responseDiv.className = type;
 
-        // Try to parse as JSON array of feeds
-        let feeds;
+        // Try to parse as JSON
+        let data;
         try {
-          feeds = JSON.parse(message);
+          data = JSON.parse(message);
         } catch {
-          feeds = null;
+          data = null;
         }
 
-        if (Array.isArray(feeds) && feeds.length && feeds[0].url) {
-          // Display as a list
-          responseDiv.innerHTML =
-            "<ul>" +
-            feeds.map((feed) => `<li>${feed.url}</li>`).join("") +
-            "</ul>";
+        if (Array.isArray(data)) {
+          if (data.length && data[0].url) {
+            // Display feeds as a list
+            responseDiv.innerHTML =
+              "<ul>" +
+              data.map((feed) => `<li>${feed.url}</li>`).join("") +
+              "</ul>";
+          } else {
+            // Display other arrays as prettified JSON
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+          }
         } else {
           // Fallback to plain text
           responseDiv.textContent = message;

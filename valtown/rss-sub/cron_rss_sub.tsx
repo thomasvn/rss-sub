@@ -58,9 +58,9 @@ function extractTodaysPosts(xml: string): BlogPost[] {
       const dateMatch = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
 
       return {
-        title: titleMatch ? titleMatch[1].trim() : "",
-        link: linkMatch ? linkMatch[1].trim() : "",
-        pubDate: dateMatch ? dateMatch[1].trim() : "",
+        title: titleMatch ? stripCDATA(titleMatch[1]) : "",
+        link: linkMatch ? stripCDATA(linkMatch[1]) : "",
+        pubDate: dateMatch ? stripCDATA(dateMatch[1]) : "",
       };
     })
     .filter((post) => {
@@ -77,4 +77,8 @@ async function sendEmailNotification(posts: BlogPost[], feedUrl: string) {
       text: post.link,
     });
   }
+}
+
+function stripCDATA(text: string): string {
+  return text.replace(/^<!\[CDATA\[|\]\]>$/g, "").trim();
 }
