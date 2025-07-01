@@ -1,4 +1,3 @@
 #!/bin/bash
 
-curl -X GET "https://thomasvn-rss-sub.val.run/get" \
-    -H "Authorization: Bearer ${API_KEY}"
+curl -X GET "https://thomasvn-rss-sub.val.run/get"

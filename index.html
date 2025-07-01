@@ -20,12 +20,19 @@
         margin-bottom: 5px;
         font-weight: 500;
       }
-      input[type="text"] {
+      input {
         width: 100%;
         padding: 8px;
         margin-bottom: 10px;
         border: 1px solid #ddd;
         border-radius: 4px;
+        box-sizing: border-box;
+      }
+      .button-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-start;
       }
       button {
         background: #007bff;
@@ -73,7 +80,7 @@
       <input type="text" id="feedUrl" placeholder="Enter RSS feed URL" />
     </div>
 
-    <div class="form-group">
+    <div class="button-group">
       <button onclick="addFeed()">Add Feed</button>
       <button onclick="deleteFeed()">Delete Feed</button>
       <button onclick="getFeeds()">Get All Feeds</button>
@@ -85,32 +92,36 @@
     <script>
       const API_BASE = "https://thomasvn-rss-sub.val.run";
 
+      // ----------------------------------------------------------------------
+      // BUTTON HANDLERS
+      // ----------------------------------------------------------------------
+
       function addFeed() {
         const apiKey = document.getElementById("apiKey").value;
-        if (!apiKey) {
-          showResponse("Please enter an API key", "error");
-          return;
-        }
         const url = document.getElementById("feedUrl").value;
-        if (!url) {
-          showResponse("Please enter a feed URL", "error");
+        if (!apiKey) {
+          displayResponse("Please enter an API key", "error");
           return;
         }
-        makeRequest(`/add?url=${encodeURIComponent(url)}`);
+        if (!url) {
+          displayResponse("Please enter a feed URL", "error");
+          return;
+        }
+        makeRequest(`/add?url=${encodeURIComponent(url)}`, apiKey);
       }
 
       function deleteFeed() {
         const apiKey = document.getElementById("apiKey").value;
-        if (!apiKey) {
-          showResponse("Please enter an API key", "error");
-          return;
-        }
         const url = document.getElementById("feedUrl").value;
-        if (!url) {
-          showResponse("Please enter a feed URL", "error");
+        if (!apiKey) {
+          displayResponse("Please enter an API key", "error");
           return;
         }
-        makeRequest(`/delete?url=${encodeURIComponent(url)}`);
+        if (!url) {
+          displayResponse("Please enter a feed URL", "error");
+          return;
+        }
+        makeRequest(`/delete?url=${encodeURIComponent(url)}`, apiKey);
       }
 
       function getFeeds() {
@@ -121,45 +132,40 @@
         makeRequest("/getBlogPosts7d");
       }
 
-      async function makeRequest(endpoint, method = "GET") {
+      // ----------------------------------------------------------------------
+      // HELPERS
+      // ----------------------------------------------------------------------
+
+      async function makeRequest(endpoint, apiKey = null) {
         try {
+          const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
           const response = await fetch(`${API_BASE}${endpoint}`, {
-            method,
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-            },
+            method: "GET",
+            headers,
           });
           const data = await response.text();
-          showResponse(data, response.ok ? "success" : "error");
+          displayResponse(data, response.ok ? "success" : "error");
         } catch (error) {
-          showResponse(error.message, "error");
+          displayResponse(error.message, "error");
         }
       }
 
-      function showResponse(message, type) {
+      function displayResponse(message, type) {
         const responseDiv = document.getElementById("response");
         responseDiv.className = type;
-
-        // Try to parse as JSON
-        let data;
         try {
-          data = JSON.parse(message);
-        } catch {
-          data = null;
-        }
-
-        if (Array.isArray(data)) {
-          if (data.length && data[0].url) {
+          const data = JSON.parse(message);
+          if (Array.isArray(data) && data.length && data[0].url) {
             // Display feeds as a list
             responseDiv.innerHTML =
               "<ul>" +
               data.map((feed) => `<li>${feed.url}</li>`).join("") +
               "</ul>";
           } else {
-            // Display other arrays as prettified JSON
+            // Display blog posts as JSON
             responseDiv.textContent = JSON.stringify(data, null, 2);
           }
-        } else {
+        } catch {
           // Fallback to plain text
           responseDiv.textContent = message;
         }

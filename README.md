@@ -13,8 +13,8 @@ This project is a personal implementation inspired by <https://blogtrottr.com/>.
 ![Demo of RSS Subscriber](./assets/demo.gif)
 
 <!-- TODO:
-- Allow users to create an account?
 - Put the body of the blog post, in the body of the email?
+- Allow users to create an account?
 -->
 
 <!-- DONE:
