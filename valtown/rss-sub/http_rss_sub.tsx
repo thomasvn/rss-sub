@@ -2,13 +2,21 @@ import { sqlite } from "https://esm.town/v/std/sqlite";
 import { parseFeed } from "https://deno.land/x/rss@1.1.2/mod.ts";
 
 const API_KEY = Deno.env.get("API_KEY");
+const DEFAULT_LOOKBACK_DAYS = 90; // 3 months
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 interface BlogPost {
   title: string;
   link: string;
   pubDate: string;
   feedUrl: string;
+  feedTitle: string;
   timestamp: number;
+}
+
+interface FeedUrl {
+  id: number;
+  url: string;
 }
 
 export default async function httpHandler(req: Request): Promise<Response> {
@@ -31,8 +39,8 @@ export default async function httpHandler(req: Request): Promise<Response> {
       return await handleDelete(feedUrl);
     case "/get":
       return await handleGet();
-    case "/getBlogPosts7d":
-      return await handleGetBlogPosts7d();
+    case "/posts":
+      return await handleGetPosts();
     default:
       return new Response("Invalid request", { status: 400 });
   }
@@ -83,11 +91,11 @@ async function handleGet(): Promise<Response> {
       args: [],
     });
 
-    const rows: { id: number; url: string }[] = result.rows.map(
+    const rows: FeedUrl[] = result.rows.map(
       (row) =>
         Object.fromEntries(
           row.map((value, index) => [result.columns[index], value])
-        ) as any
+        ) as FeedUrl
     );
 
     console.log("Retrieved URLs:", rows);
@@ -103,19 +111,18 @@ async function handleGet(): Promise<Response> {
   }
 }
 
-async function handleGetBlogPosts7d(): Promise<Response> {
+async function handleGetPosts(): Promise<Response> {
   try {
     const feeds = await getAllFeeds();
-    const sevenDaysAgoTime = new Date(
-      Date.now() - 7 * 24 * 60 * 60 * 1000
-    ).getTime();
+    const cutoffTime =
+      Date.now() - DEFAULT_LOOKBACK_DAYS * MILLISECONDS_PER_DAY;
 
     const results = await Promise.all(
       feeds.map(async (url) => {
         try {
           const response = await fetch(url);
           const xml = await response.text();
-          return await extractPostsLast7Days(xml, url, sevenDaysAgoTime);
+          return await extractRecentPosts(xml, url, cutoffTime);
         } catch (error) {
           console.error(`Error fetching ${url}:`, error);
           return [];
@@ -124,7 +131,6 @@ async function handleGetBlogPosts7d(): Promise<Response> {
     );
 
     const allPosts = results.flat().sort((a, b) => b.timestamp - a.timestamp);
-
     return new Response(JSON.stringify(allPosts), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -146,26 +152,27 @@ async function getAllFeeds(): Promise<string[]> {
   return result.rows.map((row) => row[0] as string);
 }
 
-async function extractPostsLast7Days(
+async function extractRecentPosts(
   xml: string,
   feedUrl: string,
-  sevenDaysAgoTime: number
+  cutoffTime: number
 ): Promise<BlogPost[]> {
   try {
     const feed = await parseFeed(xml);
+    const feedTitle = feed.title?.value || feed.title || feedUrl;
     const posts: BlogPost[] = [];
 
     for (const entry of feed.entries || []) {
       const postDate = new Date(entry.published || entry.publishedRaw || "");
       const timestamp = postDate.getTime();
 
-      // Filter posts from the last 7 days
-      if (timestamp >= sevenDaysAgoTime) {
+      if (timestamp >= cutoffTime) {
         posts.push({
           title: entry.title?.value || entry.title || "",
           link: entry.links[0]?.href || "",
           pubDate: entry.publishedRaw || entry.published?.toISOString() || "",
           feedUrl: feedUrl,
+          feedTitle: feedTitle,
           timestamp: timestamp,
         });
       }
@@ -188,8 +195,4 @@ async function initializeDatabase() {
       id integer primary key autoincrement,
       url text unique
     )`);
-}
-
-function stripCDATA(text: string): string {
-  return text.replace(/^<!\[CDATA\[|\]\]>$/g, "").trim();
 }

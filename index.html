@@ -84,7 +84,7 @@
       <button onclick="addFeed()">Add Feed</button>
       <button onclick="deleteFeed()">Delete Feed</button>
       <button onclick="getFeeds()">Get All Feeds</button>
-      <button onclick="getPosts()">Get Posts (last 7 days)</button>
+      <button onclick="getPosts()">Get Posts (last 3 months)</button>
     </div>
 
     <div id="response"></div>
@@ -129,7 +129,7 @@
       }
 
       function getPosts() {
-        makeRequest("/getBlogPosts7d");
+        makeRequest("/posts");
       }
 
       // ----------------------------------------------------------------------
@@ -161,8 +161,21 @@
               "<ul>" +
               data.map((feed) => `<li>${feed.url}</li>`).join("") +
               "</ul>";
+          } else if (Array.isArray(data) && data.length && data[0].title) {
+            // Display blog posts as formatted list
+            responseDiv.innerHTML =
+              "<ul>" +
+              data
+                .map(
+                  (post) =>
+                    `<li><strong>${post.feedTitle}</strong><br>` +
+                    `<em>${post.pubDate}</em><br>` +
+                    `<a href="${post.link}" target="_blank">${post.title}</a></li>`
+                )
+                .join("") +
+              "</ul>";
           } else {
-            // Display blog posts as JSON
+            // Display other data as JSON
             responseDiv.textContent = JSON.stringify(data, null, 2);
           }
         } catch {

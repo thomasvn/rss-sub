@@ -13,12 +13,13 @@ This project is a personal implementation inspired by <https://blogtrottr.com/>.
 ![Demo of RSS Subscriber](./assets/demo.gif)
 
 <!-- TODO:
-- Use rss parsing library
-- Put the body of the blog post, in the body of the email?
 - Allow users to create an account?
 -->
 
 <!-- DONE:
+- Website to show 3 months of blog posts. Acts as a feed.
+- Put the body of the blog post in the body of the email
+- Use rss parsing library
 - Endpoint to get all posts within the last week
 - The GET endpoints shouldn't require an API key
 - Docs on how to configure your own valtown

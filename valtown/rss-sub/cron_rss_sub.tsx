@@ -9,7 +9,7 @@ interface BlogPost {
   content: string;
 }
 
-const HOURS_24_MS = 48 * 60 * 60 * 1000;
+const HOURS_24_MS = 24 * 60 * 60 * 1000;
 
 export async function checkAllFeeds() {
   const feeds = await getStoredFeedUrls();
