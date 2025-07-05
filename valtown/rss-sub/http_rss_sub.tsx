@@ -1,4 +1,5 @@
 import { sqlite } from "https://esm.town/v/std/sqlite";
+import { parseFeed } from "https://deno.land/x/rss@1.1.2/mod.ts";
 
 const API_KEY = Deno.env.get("API_KEY");
 
@@ -114,7 +115,7 @@ async function handleGetBlogPosts7d(): Promise<Response> {
         try {
           const response = await fetch(url);
           const xml = await response.text();
-          return extractPostsLast7Days(xml, url, sevenDaysAgoTime);
+          return await extractPostsLast7Days(xml, url, sevenDaysAgoTime);
         } catch (error) {
           console.error(`Error fetching ${url}:`, error);
           return [];
@@ -145,35 +146,36 @@ async function getAllFeeds(): Promise<string[]> {
   return result.rows.map((row) => row[0] as string);
 }
 
-function extractPostsLast7Days(
+async function extractPostsLast7Days(
   xml: string,
   feedUrl: string,
   sevenDaysAgoTime: number
-): BlogPost[] {
-  const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+): Promise<BlogPost[]> {
+  try {
+    const feed = await parseFeed(xml);
+    const posts: BlogPost[] = [];
 
-  return items
-    .map((item) => {
-      const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/);
-      const linkMatch = item.match(/<link>([\s\S]*?)<\/link>/);
-      const dateMatch = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+    for (const entry of feed.entries || []) {
+      const postDate = new Date(entry.published || entry.publishedRaw || "");
+      const timestamp = postDate.getTime();
 
-      const pubDate = dateMatch ? stripCDATA(dateMatch[1]) : "";
-      const timestamp = new Date(pubDate).getTime();
+      // Filter posts from the last 7 days
+      if (timestamp >= sevenDaysAgoTime) {
+        posts.push({
+          title: entry.title?.value || entry.title || "",
+          link: entry.links[0]?.href || "",
+          pubDate: entry.publishedRaw || entry.published?.toISOString() || "",
+          feedUrl: feedUrl,
+          timestamp: timestamp,
+        });
+      }
+    }
 
-      return {
-        title: titleMatch ? stripCDATA(titleMatch[1]) : "",
-        link: linkMatch ? stripCDATA(linkMatch[1]) : "",
-        pubDate: pubDate,
-        feedUrl: feedUrl,
-        timestamp: timestamp,
-      };
-    })
-    .filter((post) => {
-      const postDate = new Date(post.pubDate);
-      postDate.setHours(0, 0, 0, 0);
-      return postDate.getTime() >= sevenDaysAgoTime;
-    });
+    return posts;
+  } catch (error) {
+    console.error(`⚠️ RSS parsing error for ${feedUrl}:`, error.message);
+    return [];
+  }
 }
 
 function validateApiKey(req: Request): boolean {

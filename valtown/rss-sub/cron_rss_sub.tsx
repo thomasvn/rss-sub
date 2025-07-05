@@ -6,116 +6,87 @@ interface BlogPost {
   title: string;
   link: string;
   pubDate: string;
+  content: string;
 }
 
+const HOURS_24_MS = 48 * 60 * 60 * 1000;
+
 export async function checkAllFeeds() {
-  const feeds = await getAllFeeds();
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const feeds = await getStoredFeedUrls();
+  const cutoffDate = new Date(Date.now() - HOURS_24_MS);
 
-  console.log(`\n🔍 Checking ${feeds.length} RSS feeds for recent posts...\n`);
   console.log(
-    `📅 Recent posts window: ${twentyFourHoursAgo.toISOString()} to ${new Date().toISOString()}\n`
+    `🔍 Checking ${
+      feeds.length
+    } RSS feeds for posts since ${cutoffDate.toISOString()}`
   );
-
-  console.log(`📋 Feeds to check:`);
-  feeds.forEach((feed, index) => console.log(`   ${index + 1}. ${feed}`));
-  console.log();
 
   let totalRecentPosts = 0;
   for (const url of feeds) {
-    const recentPosts = await fetchFeedAndNotify(url, twentyFourHoursAgo);
-    totalRecentPosts += recentPosts;
+    const { recentPosts, feedTitle } = await parseFeedFromUrl(url, cutoffDate);
+    if (recentPosts.length > 0) {
+      await sendEmailNotifications(recentPosts, feedTitle);
+    }
+    totalRecentPosts += recentPosts.length;
   }
 
-  console.log(`\n📊 Summary:`);
-  console.log(`   • Total feeds checked: ${feeds.length}`);
-  console.log(`   • Recent posts found: ${totalRecentPosts}\n`);
+  console.log(
+    `📊 Found ${totalRecentPosts} recent posts from ${feeds.length} feeds`
+  );
 }
 
 // All feeds are stored in the valtown sqlite database. GET/ADD/DELETE are
 // handled by the http_rss_sub.tsx file.
-async function getAllFeeds(): Promise<string[]> {
+async function getStoredFeedUrls(): Promise<string[]> {
   const result = await sqlite.execute({
-    sql: `select url from feed_urls`,
+    sql: "SELECT url FROM feed_urls",
     args: [],
   });
   return result.rows.map((row) => row[0] as string);
 }
 
-async function fetchFeedAndNotify(
+async function parseFeedFromUrl(
   feedUrl: string,
-  twentyFourHoursAgo: Date
-): Promise<number> {
+  cutoffDate: Date
+): Promise<{ recentPosts: BlogPost[]; feedTitle: string }> {
   try {
     const response = await fetch(feedUrl);
     const xml = await response.text();
-    const recentPosts = await extractRecentPosts(
-      xml,
-      feedUrl,
-      twentyFourHoursAgo
-    );
+    const feed = await parseFeed(xml);
+    const feedTitle = feed.title?.value || feed.title || feedUrl;
+    const entries = feed.entries || [];
+
+    const recentPosts = entries
+      .map((entry) => ({
+        title: entry.title?.value || entry.title || "",
+        link: entry.links[0]?.href || "",
+        pubDate: entry.publishedRaw || entry.published?.toISOString() || "",
+        content:
+          entry.content?.value ||
+          entry.description?.value ||
+          entry.description ||
+          "",
+      }))
+      .filter((post) => new Date(post.pubDate) >= cutoffDate);
 
     if (recentPosts.length > 0) {
-      await sendEmailNotification(recentPosts, feedUrl);
       console.log(
-        `✅ Found ${recentPosts.length} recent post${
-          recentPosts.length > 1 ? "s" : ""
-        } from ${feedUrl}`
+        `📰 ${feedUrl}: ${recentPosts.length}/${entries.length} recent posts`
       );
     }
 
-    return recentPosts.length;
+    return { recentPosts, feedTitle };
   } catch (error) {
     console.error(`❌ Error checking ${feedUrl}:`, error.message);
-    return 0;
+    return { recentPosts: [], feedTitle: feedUrl };
   }
 }
 
-// Parse RSS feed using rss library
-async function extractRecentPosts(
-  xml: string,
-  feedUrl: string,
-  twentyFourHoursAgo: Date
-): Promise<BlogPost[]> {
-  try {
-    const feed = await parseFeed(xml);
-    const recentPosts: BlogPost[] = [];
-    let totalPosts = 0;
-
-    for (const entry of feed.entries || []) {
-      totalPosts++;
-      const postDate = new Date(entry.published || entry.publishedRaw || "");
-
-      if (postDate >= twentyFourHoursAgo) {
-        recentPosts.push({
-          title: entry.title?.value || entry.title || "",
-          link: entry.links[0]?.href || "",
-          pubDate: entry.publishedRaw || entry.published?.toISOString() || "",
-        });
-      }
-    }
-
-    if (recentPosts.length > 0) {
-      console.log(
-        `   📰 Found ${totalPosts} total posts, ${recentPosts.length} recent`
-      );
-      recentPosts.forEach((post) => {
-        console.log(`      • "${post.title}" (${post.pubDate})`);
-      });
-    }
-
-    return recentPosts;
-  } catch (error) {
-    console.error(`   ⚠️  RSS parsing error for ${feedUrl}:`, error.message);
-    return [];
-  }
-}
-
-async function sendEmailNotification(posts: BlogPost[], feedUrl: string) {
+async function sendEmailNotifications(posts: BlogPost[], feedTitle: string) {
   for (const post of posts) {
     await email({
-      subject: `${post.title} - from ${feedUrl}`,
-      text: post.link,
+      subject: `${feedTitle}: ${post.title}`,
+      text: `${post.link}\n\n${post.content}`,
     });
   }
 }
